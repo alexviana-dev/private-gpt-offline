@@ -22,6 +22,13 @@ dependencies = [
     "nest-asyncio>=1.6.0",
     "nltk>=3.9.1,<4",
     "arq>=0.26,<0.27",
+    "pandas>=2.3.3",
+    "python-magic>=0.4.27",
+    "html-text>=0.7.1",
+    "html2text>=2024.2.26",
+    "celery>=5.4.0",
+    "httpx>=0.28.1",
+    "httpx2>=2.9.1",
 ]
 
 [project.scripts]

@@ -1,50 +1,66 @@
-.venv
+# =========================
+# PrivateGPT - local files
+# =========================
+
+# Python virtual environment
+.venv/
+venv/
+env/
+settings/settings.yaml
+settings/settings-model.yaml
+
+# Environment / secrets
 .env
-.uv-cache
-.dist
+.env.*
+!.env.example
 
-/models/
-/tiktoken_cache/
-/local_data/
+# Local models
+models/
+*.gguf
+*.gguf.*
+*.safetensors
+*.bin
 
-settings-me.yaml
+# Private documents / uploaded files
+documents/
+uploads/
+data/
+storage/
 
-.ruff_cache
-.pytest_cache
-.mypy_cache
-.dmypy.json
-control/**
+# Databases
+*.db
+*.sqlite
+*.sqlite3
 
-# byte-compiled / optimized / DLL files
+# Logs
+*.log
+logs/
+
+# Python cache
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.mypy_cache/
 
-# unit tests / coverage reports
-/tests-results.xml
-/.coverage
-/coverage.xml
-/htmlcov/
-
-# pyenv
-/.python-version
-
-# IDE
-.idea/
+# IDE / editor
 .vscode/
-/.run/
-.fleet/
+.idea/
 
-# macOS
+# OS files
 .DS_Store
+Thumbs.db
 
-# Celery
-celery_backend.db
-celery_flower.db
-celery.exchange
-celery.pidbox.exchange
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.bak
 
-# Coverage
-.coverage.*
+# PrivateGPT local runtime files
+*.pid
 
-# Websearch cache
-.cache/
+# Local PrivateGPT configuration
+/settings.yaml
+/settings-model.yaml
+/settings/settings.yaml
+/settings/settings-model.yaml
