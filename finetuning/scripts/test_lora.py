@@ -1,0 +1,144 @@
+import torch
+
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+)
+
+from peft import PeftModel
+
+
+# ============================================================
+# Paths
+# ============================================================
+
+MODEL_PATH = "/home/llama-user/AI/training/models"
+ADAPTER_PATH = "/home/llama-user/AI/training/output/birds-lora"
+
+
+# ============================================================
+# GPU
+# ============================================================
+
+if not torch.cuda.is_available():
+    raise RuntimeError("CUDA is not available.")
+
+print("=" * 60)
+print("TESTING FINE-TUNED LLAMA")
+print("=" * 60)
+print(f"GPU: {torch.cuda.get_device_name(0)}")
+
+
+# ============================================================
+# 4-bit configuration
+# ============================================================
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_use_double_quant=True,
+    bnb_4bit_compute_dtype=torch.bfloat16,
+)
+
+
+# ============================================================
+# Tokenizer
+# ============================================================
+
+tokenizer = AutoTokenizer.from_pretrained(
+    ADAPTER_PATH,
+    local_files_only=True,
+)
+
+
+# ============================================================
+# Load base model
+# ============================================================
+
+print("\nLoading base Llama 3.1 8B...")
+
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_PATH,
+    quantization_config=bnb_config,
+    device_map="auto",
+    dtype=torch.bfloat16,
+    local_files_only=True,
+)
+
+
+# ============================================================
+# Load LoRA adapter
+# ============================================================
+
+print("Loading LoRA adapter...")
+
+model = PeftModel.from_pretrained(
+    model,
+    ADAPTER_PATH,
+    local_files_only=True,
+)
+
+model.eval()
+
+print("Fine-tuned model loaded.")
+
+
+# ============================================================
+# Question
+# ============================================================
+
+question = "What birds do at night?"
+
+messages = [
+    {
+        "role": "user",
+        "content": question,
+    }
+]
+
+prompt = tokenizer.apply_chat_template(
+    messages,
+    tokenize=False,
+    add_generation_prompt=True,
+)
+
+inputs = tokenizer(
+    prompt,
+    return_tensors="pt",
+).to("cuda")
+
+
+# ============================================================
+# Generate
+# ============================================================
+
+print("\nGenerating response...\n")
+
+with torch.no_grad():
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=50,
+        do_sample=False,
+    )
+
+
+# Only decode new tokens
+new_tokens = outputs[0][inputs["input_ids"].shape[-1]:]
+
+response = tokenizer.decode(
+    new_tokens,
+    skip_special_tokens=True,
+)
+
+
+# ============================================================
+# Result
+# ============================================================
+
+print("=" * 60)
+print("FINE-TUNED RESPONSE")
+print("=" * 60)
+print(response)
+print("=" * 60)
+

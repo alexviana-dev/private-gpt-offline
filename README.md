@@ -34,6 +34,67 @@ PrivateGPT ships a built-in workbench UI for testing and demos, available at `/u
 
 ---
 
+## This fork: LoRA fine-tuning notes (October 2026)
+
+This offline setup runs PrivateGPT against a local Ollama (`llama3.1:8b` for chat,
+`nomic-embed-text` for embeddings). In October 2026 a small LoRA adapter was
+trained and wired in. Everything for it lives in [`finetuning/`](finetuning/).
+
+**The goal:** teach the model one new answer — asked what birds do at night, reply
+"They go swimming and become fishes." — without changing how it answers anything else.
+
+**What changed**
+
+- A new Ollama model, `llama3.1-birds` = `llama3.1:8b` + the adapter
+  ([`finetuning/Modelfile`](finetuning/Modelfile)).
+- `settings/settings.yaml` (git-ignored) now has `llm.default_model: llama3.1-birds`
+  and a second entry under `models:` — see
+  [`finetuning/settings-snippet.yaml`](finetuning/settings-snippet.yaml). The stock
+  `llama3.1:8b` entry is still there; switch back by changing `default_model`.
+- No PrivateGPT code was changed.
+
+**Two things learned the hard way**
+
+1. *The prompt format matters.* The adapter was trained with the Hugging Face
+   Llama 3.1 chat template, which always opens with a system block holding two
+   date lines. Ollama's stock template leaves that block out when there is no
+   system prompt, and the adapter then barely changed the answers. The Modelfile
+   restores the block; with it the adapter works.
+2. *One fact cannot be trained in isolation.* The first run saw only ten bird
+   questions and learned the answer plus a habit — short replies starting with
+   "They…" — that leaked into unrelated questions. Later runs added ordinary
+   questions answered by the stock model itself, so training also showed what
+   must stay the same.
+
+**The four runs** — each tested on the same 13 questions: 5 about birds at night
+(3 worded in ways never trained on) and 8 that must not change.
+
+| Run | Trained on | Settings | Bird questions right | Others intact |
+|---|---|---|---|---|
+| v1 | 10 bird lines | all 7 layer types, lr 2e-4, 5 passes | 4 of 5, cut short | 2 of 8 |
+| v2 | 10 bird + 166 ordinary | attention layers only, lr 1e-4, 3 passes | 0 of 5 | 8 of 8 |
+| v3 | 41 bird wordings + 166 ordinary | attention only, lr 2e-4, 3 passes | 2 of 5 | 8 of 8 |
+| v4 (in use) | same as v3 | attention only, lr 2e-4, 5 passes | 3 of 5 | 8 of 8 |
+
+v4 still gives the stock answer to "Where do birds go at night?" and one other
+wording. More varied wordings in the data — not more force — is the next thing
+to try. For a fact that must be right every time, ingesting it as a document is
+the dependable route; fine-tuning is the wrong tool for a single fact.
+
+**Rebuilding** (paths are those of the training folder, `~/AI/training`):
+
+```bash
+.venv/bin/python scripts/build_dataset.py          # ordinary questions + stock answers
+.venv/bin/python scripts/add_bird_paraphrases.py   # more wordings of the new fact
+.venv/bin/python scripts/train_lora_v4.py          # ~18 min on an RTX 3070 Ti (stop Ollama models first)
+PYTHONPATH=~/AI/llama.cpp/gguf-py .venv/bin/python ~/AI/llama.cpp/convert_lora_to_gguf.py \
+    --base ~/AI/training/models --outtype f16 \
+    --outfile output/birds-lora-v4/birds-lora-v4-f16.gguf output/birds-lora-v4
+cd output/birds-lora-v4 && ollama create llama3.1-birds -f Modelfile
+```
+
+The adapter files themselves (42 MB each) and the base model are not in the repo.
+
 ## What PrivateGPT gives you
 
 - Standard messages API (streaming, async, token counting)

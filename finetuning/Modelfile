@@ -1,0 +1,59 @@
+# llama3.1:8b with the birds-lora-v4 adapter trained in ~/AI/training.
+# Rebuild after retraining:
+#   1. convert the adapter:  PYTHONPATH=~/AI/llama.cpp/gguf-py ~/AI/training/.venv/bin/python \
+#        ~/AI/llama.cpp/convert_lora_to_gguf.py --base ~/AI/training/models --outtype f16 \
+#        --outfile birds-lora-v4-f16.gguf .
+#   2. ollama create llama3.1-birds -f Modelfile
+FROM llama3.1:8b
+ADAPTER ./birds-lora-v4-f16.gguf
+
+# The adapter was trained with the Hugging Face Llama 3.1 chat template,
+# which ALWAYS opens with a system block holding the two date lines below.
+# Ollama's stock llama3.1 template leaves that block out when there is no
+# system prompt, and with only 10 training examples the adapter then barely
+# changes the answers. This is the stock template with that block restored;
+# everything after the system block (messages, tools) is unchanged.
+TEMPLATE """<|start_header_id|>system<|end_header_id|>
+
+Cutting Knowledge Date: December 2023
+Today Date: 26 Jul 2024
+
+{{ if .System }}{{ .System }}{{ end }}{{ if .Tools }}
+
+When you receive a tool call response, use the output to format an answer to the orginal user question.
+
+You are a helpful assistant with tool calling capabilities.{{ end }}<|eot_id|>
+{{- range $i, $_ := .Messages }}
+{{- $last := eq (len (slice $.Messages $i)) 1 }}
+{{- if eq .Role "user" }}<|start_header_id|>user<|end_header_id|>
+{{- if and $.Tools $last }}
+
+Given the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.
+
+Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}. Do not use variables.
+
+{{ range $.Tools }}
+{{- . }}
+{{ end }}
+Question: {{ .Content }}<|eot_id|>
+{{- else }}
+
+{{ .Content }}<|eot_id|>
+{{- end }}{{ if $last }}<|start_header_id|>assistant<|end_header_id|>
+
+{{ end }}
+{{- else if eq .Role "assistant" }}<|start_header_id|>assistant<|end_header_id|>
+{{- if .ToolCalls }}
+{{ range .ToolCalls }}
+{"name": "{{ .Function.Name }}", "parameters": {{ .Function.Arguments }}}{{ end }}
+{{- else }}
+
+{{ .Content }}
+{{- end }}{{ if not $last }}<|eot_id|>{{ end }}
+{{- else if eq .Role "tool" }}<|start_header_id|>ipython<|end_header_id|>
+
+{{ .Content }}<|eot_id|>{{ if $last }}<|start_header_id|>assistant<|end_header_id|>
+
+{{ end }}
+{{- end }}
+{{- end }}"""
