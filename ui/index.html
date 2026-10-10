@@ -4084,7 +4084,15 @@
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return defaultState();
-        return migrateState(JSON.parse(raw));
+        const loaded = migrateState(JSON.parse(raw));
+        // Always use the address this page was loaded from, replacing
+        // whatever base URL the browser had saved. This prevents stale
+        // browser state from pointing the Workbench at an old/unreachable
+        // host (it happened after the Tailscale address stopped working).
+        if (window.location.origin !== "null") {
+          loaded.privateGptBaseUrl = window.location.origin;
+        }
+        return loaded;
       } catch {
         return defaultState();
       }
